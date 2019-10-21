@@ -23,7 +23,7 @@ public class MyState implements Cloneable {
     private java.util.Random random;
     private int[] nextPlayer; // the index of the next player to draw a card (using Object reference so value
                               // is shared).
-    private Agent[] agents;
+    private MyRandomAgent[] agents;
 
     /**
      * Default constructor to build the initial observed state for a player First
@@ -34,7 +34,7 @@ public class MyState implements Cloneable {
      *               4)
      * @throws IllegalArgumentException if the array is of the wrong size.
      */
-    public MyState(java.util.Random random, RandomAgent[] agents, Card[] remainingCards, Card topCard, Card inHand,
+    public MyState(java.util.Random random, MyRandomAgent[] agents, Card[] remainingCards, Card topCard, Card inHand,
             int plrIndex, boolean[] eliminated, int topIndex, Card[][] discscards, boolean[] handmaid) {
         num = agents.length;
         if (num < 2 || num > 4)
@@ -108,7 +108,7 @@ public class MyState implements Cloneable {
             this.top[i] = copyState.top[i];
         }
 
-        this.agents = new RandomAgent[this.num];
+        this.agents = new MyRandomAgent[this.num];
         for (int i = 0; i < this.num; i++) {
             this.agents[i] = copyState.agents[i];
         }

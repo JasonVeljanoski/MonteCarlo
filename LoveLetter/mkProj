@@ -1,7 +1,7 @@
 #simple buildscript for the project
 #compile all files
 echo 'compiling files'
-javac -d bin src/loveletter/*.java src/agents/RandomAgent.java src/agents/BorkedAgent.java src/agents/MCTSAgent.java src/agents/MyState.java
+javac -d bin src/loveletter/*.java src/agents/RandomAgent.java src/agents/BorkedAgent.java src/agents/MCTSAgent.java src/agents/MyState.java src/agents/Node.java src/agents/MyRandomAgent.java
 #run test
 echo 'running test'
 java -cp bin/ loveletter.LoveLetter
