@@ -6,5 +6,5 @@ javac -d bin src/loveletter/*.java src/agents/RandomAgent.java src/agents/Borked
 echo 'running test'
 java -cp bin/ loveletter.LoveLetter
 #generate docs
-echo 'generate docs'
+#echo 'generate docs'
 #javadoc -overview doc/overview.html -d doc/ src/loveletter/*.java src/agents/RandomAgent.java src/agents/BorkedAgent.java
