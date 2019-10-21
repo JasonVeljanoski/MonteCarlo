@@ -54,7 +54,7 @@ public class MCTSAgent implements Agent {
   public Action playCard(Card c){
     Action act = null;
     Card play;
-
+    
     testState(c);
 
     while(!current.legalAction(act, c)){
@@ -95,7 +95,7 @@ public class MCTSAgent implements Agent {
 
   public void testState(Card topCard) {
 
-    RandomAgent[] agents = { new agents.RandomAgent(), new agents.RandomAgent(), new agents.RandomAgent(),new agents.RandomAgent() };
+    RandomAgent[] agents = { new RandomAgent(), new RandomAgent(), new RandomAgent(),new RandomAgent() };
     Card[] remainingCards = current.unseenCards();
     Card inHand = current.getCard(myIndex);
 
@@ -128,10 +128,6 @@ public class MCTSAgent implements Agent {
     }
     
     MyState s = new MyState(rand, agents, remainingCards, topCard, inHand, myIndex, eliminated, topIndex, discards, handmaid);
+
   }
-
-
-
 }
-
-
