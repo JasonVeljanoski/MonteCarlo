@@ -48,6 +48,7 @@ public class MyState implements Cloneable {
         } catch (IllegalActionException e) {
             /* unreachable code, do nothing */}
         nextPlayer = new int[1];
+        nextPlayer[0] = plrIndex;
     }
 
     /**
@@ -105,7 +106,7 @@ public class MyState implements Cloneable {
         this.hand = new Card[num];
         this.handmaid = handmaid;
         this.top = new int[1];
-        this.top[0] = topIndex;
+        this.top[0] = topIndex - numRemaining - 1;
         this.known = new boolean[num][num];
         for (int i = 0; i < num; i++) {
             if (!eliminated[i]) {
