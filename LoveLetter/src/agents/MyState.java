@@ -50,6 +50,69 @@ public class MyState implements Cloneable {
         nextPlayer = new int[1];
         nextPlayer[0] = plrIndex;
     }
+    
+    /**
+     * Deep copy state
+     * 
+     * @param copyState
+     */
+    public MyState(MyState copyState) {
+        this.num = copyState.num;
+        this.player = copyState.player;
+        this.random = copyState.random;
+
+        this.deck = new Card[copyState.deck.length];
+        for (int i = 0; i < this.deck.length; i++) {
+            this.deck[i] = copyState.deck[i];
+        }
+
+        this.discardCount = new int[copyState.discardCount.length];
+        for (int i = 0; i < this.discardCount.length; i++) {
+            this.discardCount[i] = copyState.discardCount[i];
+        }
+
+        this.discards = new Card[4][16];
+        for (int i = 0; i < 4; i++) {
+            for (int j = 0; j < 16; j++) {
+                this.discards[i][j] = copyState.discards[i][j];
+            }
+        }
+
+        this.hand = new Card[copyState.hand.length];
+        for (int i = 0; i < this.hand.length; i++) {
+            this.hand[i] = copyState.hand[i];
+        }
+
+        this.handmaid = new boolean[copyState.handmaid.length];
+        for (int i = 0; i < this.handmaid.length; i++) {
+            this.handmaid[i] = copyState.handmaid[i];
+        }
+
+        this.known = new boolean[copyState.known.length][this.num];
+        for (int i = 0; i < this.known.length; i++) {
+            this.known[i] = copyState.known[i];
+        }
+
+        this.nextPlayer = new int[1];
+        for (int i = 0; i < 1; i++) {
+            this.nextPlayer[i] = copyState.nextPlayer[i];
+        }
+
+        this.scores = new int[this.num];
+        for (int i = 0; i < this.scores.length; i++) {
+            this.scores[i] = copyState.scores[i];
+        }
+
+        this.top = new int[1];
+        for (int i = 0; i < 1; i++) {
+            this.top[i] = copyState.top[i];
+        }
+
+        this.agents = new RandomAgent[this.num];
+        for (int i = 0; i < this.num; i++) {
+            this.agents[i] = copyState.agents[i];
+        }
+    }
 
     /**
      * Resets state for a new round, with new deck of cards, and everyone's hand and
