@@ -249,7 +249,7 @@ public class MCTSAgent implements Agent {
           System.out.println("NULL BICH");
         }
 
-        //MyState gameState = new MyState(currentNode.getState());
+        // MyState gameState = new MyState(currentNode.getState());
 
         // EXPANSION PHASE OF
         // MONTECARLO---------------------------------------------------------------------------------------------------------------------------------
@@ -257,10 +257,11 @@ public class MCTSAgent implements Agent {
         // Check if the node has been visited before
         // If it has been visited, expand the node and set currentNode to one of the
         // newly generated children
+        int score = 0;
         if (!currentNode.getIsTerminal()) {
           if (currentNode.getVisits() != 0) {
             // Need to expand the node here
-          
+
             expand(currentNode, agents);
             System.out.println("NODE EXPANDED");
 
@@ -273,13 +274,94 @@ public class MCTSAgent implements Agent {
 
           // Need to change this
           // rollout(c);
-          //int score = myRollout(currentNode);
+          score = myRollout(currentNode);
+
+        }
+        System.out.println("LETS BACK PROGATE");
+        // BACKPROPAGATION PHASE OF
+        // MONTECARLO-----------------------------------------------------------------------------------------------------------------
+        currentNode.incrementScore(score);
+        currentNode.incrementVisits(1);
+        // Travels up the tree, increasing the score and visits for each node until it
+        // reaches the root node
+        while (currentNode.getParent() != null) {
+          if (score == 1) {
+            currentNode.getParent().incrementScore(1);
+          }
+          currentNode.getParent().incrementVisits(1);
+
+          currentNode = currentNode.getParent();
+
         }
       }
     }
 
-    return c;
+    double ratio1 = (double) child1.getScore() / (double) child1.getVisits();
+    double ratio2 = (double) child2.getScore() / (double) child2.getVisits();
 
+    if (ratio1 < ratio2)
+      return c;
+    else
+      return current.getCard(myIndex);
+
+  }
+
+  /**
+   * 
+   * @param n
+   * @return
+   */
+  public int myRollout(Node n) {
+    System.out.println(
+        "----------------------------------START ROLLOUT  --------------------------------------------");
+
+    MyState gameState = new MyState(n.getState());
+
+    // create agents to participate in the rollout
+    MyRandomAgent[] agents = new MyRandomAgent[4];
+    for (int i = 0; i < agents.length; i++) {
+      agents[i] = new agents.MyRandomAgent();
+    }
+
+    MyState[] playerStates = new MyState[4];
+    try {
+      for (int i = 0; i < playerStates.length; i++) {
+        playerStates[i] = gameState.playerState(i);
+        agents[i].newRound(playerStates[i]);
+      }
+
+      // WHILE ROUND IS NOT OVER && AGENT NOT ELIMINATED
+      while (!gameState.roundOver() && !gameState.eliminated(myIndex)) {
+
+        Card topCard = gameState.drawCard();
+        System.out.println("Player " + gameState.nextPlayer() + " draws the " + topCard);
+        Action act = agents[gameState.nextPlayer()].playCard(topCard);
+        try {
+          System.out.println(gameState.update(act, topCard));
+        } catch (IllegalActionException e) {
+          // System.out.println("ILLEGAL ACTION PERFORMED BY PLAYER " + agents[gameState.nextPlayer()] + "("
+          //     + gameState.nextPlayer() + ")\nRandom Move Substituted");
+          // randomAgent.newRound(gameState.playerState(gameState.nextPlayer()));
+          // act = randomAgent.playCard(topCard);
+          // gameState.update(act, topCard);
+          System.out.println("--------- SHITS FUCKED ------");
+          System.exit(1);
+        }
+        for (int p = 0; p < agents.length; p++)
+          agents[p].see(act, playerStates[p]);
+      }
+      // System.out.println("End of Rollout, scores are:");
+      // for (int i = 0; i < agents.length; i++) {
+      // System.out.println("Player " + i + ": " + gameState.score(i));
+      // }
+      System.out.println(
+          "---------------------------------- END ROLLOUT  --------------------------------------------");
+      return gameState.score(myIndex);
+    } catch (IllegalActionException e) {
+      System.out.println("IllegalActionException IN ROLLOUT");
+      e.printStackTrace();
+      return -1;
+    }
   }
 
   /**
@@ -295,13 +377,12 @@ public class MCTSAgent implements Agent {
     Node child2 = n.getSecondChild();
     Card topCard = null;
 
-
     try {
-        topCard = gameState.drawCard();
-      } catch (IllegalActionException e) {
-        System.out.println("Illegal action");
-        System.exit(1);
-      }
+      topCard = gameState.drawCard();
+    } catch (IllegalActionException e) {
+      System.out.println("Illegal action");
+      System.exit(1);
+    }
     if (topCard == Card.PRINCESS) {
 
       Action a = agents[gameState.nextPlayer()].playSpecificCard(gameState.getCard(gameState.nextPlayer()));
@@ -435,7 +516,6 @@ public class MCTSAgent implements Agent {
     }
   }
 
-
   /**
    * expand a node n
    * 
@@ -447,7 +527,6 @@ public class MCTSAgent implements Agent {
     MyState gameState = new MyState(n.getState());
     Node child1 = n.getFirstChild();
     Node child2 = n.getSecondChild();
-
 
     if (topCard == Card.PRINCESS) {
 
