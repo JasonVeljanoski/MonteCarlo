@@ -161,8 +161,8 @@ public class MyState implements Cloneable {
         
         // organise the deck h1, h2, h3, h4, topCard, rest of deck
         newDeck = moveToTop(newDeck, topCard, inHand, plrIndex, indexes, eliminated);
-        System.out.println("\nCard in hand: " + inHand.toString());
-        System.out.println("Top card: " + topCard.toString());
+        System.out.println("\nCard in hand: " + inHand.toString() + " index in deck originally: " + indexes[0]);
+        System.out.println("Top card: " + topCard.toString() + " index in deck originally: " + indexes[1]);
         System.out.println("\nCards in deck:");
         for(int i = 0; i < newDeck.length; i++){
             if(newDeck[i] == null){
@@ -268,7 +268,13 @@ public class MyState implements Cloneable {
                 if(!elim[j]){
                     //Do this so that when we deal out hands, we get our proper card
                     if(j == playerIndex) {
-                        //SWAP hand INTO d[i]
+                        //SWAP hand INTO d[i]                        
+                        
+                        //For case when topCard is in index[0]
+                        if(i == indexes[1]){
+                            indexes[1] = indexes[0];
+                        }
+                        
                         d[indexes[0]] = d[i];
                         d[i] = hand;                                               
                         j++;
