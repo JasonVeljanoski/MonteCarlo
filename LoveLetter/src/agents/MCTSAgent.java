@@ -223,13 +223,59 @@ public class MCTSAgent implements Agent {
 
       // Draw card from deck, then play the card just drawn from the deck
       try {
-      Card topCard = s.drawCard();
+        Card topCard = s.drawCard();
       } catch (IllegalActionException e) {
         System.out.println("Illegal action");
       }
-      System.out.println("------BEGIN EXPAND NODE------");
-      expand(rootNode, c, agents);
-      System.out.println("------END EXPAND NODE------");
+      System.out.println("------BEGIN EXPAND ROOT NODE------");
+      expandRoot(rootNode, agents, c);
+      System.out.println("------END EXPAND ROOT NODE------");
+
+      for (int j = 0; j < 20; j++) {
+        Node currentNode = rootNode;
+
+        // Go down the tree until a leaf node has been found
+        while (!currentNode.isLeaf()) {
+
+          // Sets the current node to its child with the lowest UCB1 value
+          currentNode = UCB1(currentNode);
+
+        }
+
+        // DEEEEP copy gamestate
+        if (currentNode.getState() == null) {
+          System.out.println(currentNode.getParent().getIsTerminal());
+
+          System.out.println("NULL BICH");
+        }
+
+        //MyState gameState = new MyState(currentNode.getState());
+
+        // EXPANSION PHASE OF
+        // MONTECARLO---------------------------------------------------------------------------------------------------------------------------------
+
+        // Check if the node has been visited before
+        // If it has been visited, expand the node and set currentNode to one of the
+        // newly generated children
+        if (!currentNode.getIsTerminal()) {
+          if (currentNode.getVisits() != 0) {
+            // Need to expand the node here
+          
+            expand(currentNode, agents);
+            System.out.println("NODE EXPANDED");
+
+            // Select one of the children as the new node
+            currentNode = currentNode.getFirstChild();
+          }
+
+          // ROLLOUT PHASE OF
+          // MONTECARLO------------------------------------------------------------------------------------------------------------------------
+
+          // Need to change this
+          // rollout(c);
+          //int score = myRollout(currentNode);
+        }
+      }
     }
 
     return c;
@@ -242,12 +288,20 @@ public class MCTSAgent implements Agent {
    * @param n
    * @param topCard
    */
-  private void expand(Node n, Card topCard, MyRandomAgent[] agents) {
+  private void expand(Node n, MyRandomAgent[] agents) {
 
     MyState gameState = new MyState(n.getState());
     Node child1 = n.getFirstChild();
     Node child2 = n.getSecondChild();
+    Card topCard = null;
 
+
+    try {
+        topCard = gameState.drawCard();
+      } catch (IllegalActionException e) {
+        System.out.println("Illegal action");
+        System.exit(1);
+      }
     if (topCard == Card.PRINCESS) {
 
       Action a = agents[gameState.nextPlayer()].playSpecificCard(gameState.getCard(gameState.nextPlayer()));
@@ -257,7 +311,11 @@ public class MCTSAgent implements Agent {
         gameState.update(a, topCard);
       } catch (IllegalActionException e) {
         System.out.println("Update didnt work");
-        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
         System.exit(1);
       }
 
@@ -274,7 +332,11 @@ public class MCTSAgent implements Agent {
         gameState.update(a, topCard);
       } catch (IllegalActionException e) {
         System.out.println("Update didnt work");
-        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
         System.exit(1);
       }
 
@@ -292,7 +354,11 @@ public class MCTSAgent implements Agent {
         gameState.update(a, topCard);
       } catch (IllegalActionException e) {
         System.out.println("Update didnt work");
-        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
         System.exit(1);
       }
 
@@ -309,7 +375,11 @@ public class MCTSAgent implements Agent {
         gameState.update(a, topCard);
       } catch (IllegalActionException e) {
         System.out.println("Update didnt work");
-        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
         System.exit(1);
       }
 
@@ -326,7 +396,11 @@ public class MCTSAgent implements Agent {
         gameState.update(act, topCard);
       } catch (IllegalActionException e) {
         System.out.println("Update didnt work");
-        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
         System.exit(1);
       }
 
@@ -337,7 +411,7 @@ public class MCTSAgent implements Agent {
       gameState = new MyState(n.getState());
 
       try {
-      topCard = gameState.drawCard();
+        topCard = gameState.drawCard();
       } catch (IllegalActionException e) {
         System.out.println("Illegal action");
       }
@@ -347,7 +421,158 @@ public class MCTSAgent implements Agent {
         System.out.println(gameState.update(act, topCard));
       } catch (IllegalActionException e) {
         System.out.println("Update didnt work");
-        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
+        System.exit(1);
+      }
+
+      // Setup child2
+      child2.setState(gameState);
+      checkIfTerminal(child2);
+    }
+  }
+
+
+  /**
+   * expand a node n
+   * 
+   * @param n
+   * @param topCard
+   */
+  private void expandRoot(Node n, MyRandomAgent[] agents, Card topCard) {
+
+    MyState gameState = new MyState(n.getState());
+    Node child1 = n.getFirstChild();
+    Node child2 = n.getSecondChild();
+
+
+    if (topCard == Card.PRINCESS) {
+
+      Action a = agents[gameState.nextPlayer()].playSpecificCard(gameState.getCard(gameState.nextPlayer()));
+
+      // Update the gameState, then deep copy it into a child node
+      try {
+        gameState.update(a, topCard);
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
+        System.exit(1);
+      }
+
+      child1.setState(gameState);
+      checkIfTerminal(child1);
+
+      child2.incrementVisits(10000000);
+
+    } else if (gameState.getCard(gameState.nextPlayer()) == Card.PRINCESS) {
+      Action a = agents[gameState.nextPlayer()].playSpecificCard(topCard);
+
+      // Update the gameState, then deep copy it into a child node
+      try {
+        gameState.update(a, topCard);
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
+        System.exit(1);
+      }
+
+      child1.setState(gameState);
+      checkIfTerminal(child1);
+
+      child2.incrementVisits(10000000);
+
+    } else if (topCard == Card.COUNTESS && (gameState.getCard(gameState.nextPlayer()) == Card.PRINCE
+        || gameState.getCard(gameState.nextPlayer()) == Card.KING)) {
+      Action a = agents[gameState.nextPlayer()].playSpecificCard(topCard);
+
+      // Update the gameState, then deep copy it into a child node
+      try {
+        gameState.update(a, topCard);
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
+        System.exit(1);
+      }
+
+      child1.setState(gameState);
+      checkIfTerminal(child1);
+
+      child2.incrementVisits(10000000);
+    } else if (gameState.getCard(gameState.nextPlayer()) == Card.COUNTESS
+        && (topCard == Card.PRINCE || topCard == Card.KING)) {
+      Action a = agents[gameState.nextPlayer()].playSpecificCard(gameState.getCard(gameState.nextPlayer()));
+
+      // Update the gameState, then deep copy it into a child node
+      try {
+        gameState.update(a, topCard);
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
+        System.exit(1);
+      }
+
+      child1.setState(gameState);
+      checkIfTerminal(child1);
+
+      child2.incrementVisits(10000000);
+    } else {
+
+      Action act = agents[gameState.nextPlayer()].playSpecificCard(topCard);
+
+      // Update the gameState, then deep copy it into a child node
+      try {
+        gameState.update(act, topCard);
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
+        System.exit(1);
+      }
+
+      child1.setState(gameState);
+      checkIfTerminal(child1);
+
+      // Reset gameState to its inital state from rootNode
+      gameState = new MyState(n.getState());
+
+      try {
+        topCard = gameState.drawCard();
+      } catch (IllegalActionException e) {
+        System.out.println("Illegal action");
+      }
+      act = agents[gameState.nextPlayer()].playSpecificCard(gameState.getCard(gameState.nextPlayer()));
+
+      try {
+        System.out.println(gameState.update(act, topCard));
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try {
+          Thread.sleep(1000);
+        } catch (InterruptedException l) {
+          System.out.println(l);
+        }
         System.exit(1);
       }
 
@@ -382,4 +607,38 @@ public class MCTSAgent implements Agent {
     }
 
   }
+
+  /**
+   * Returns the child that has the lowest UCB1 value
+   * 
+   * 
+   */
+  public Node UCB1(Node parent) {
+
+    Node child1 = parent.getFirstChild();
+    Node child2 = parent.getSecondChild();
+
+    // Checking if visits for either of the nodes is 0, which would make UCB1
+    // infinite
+    if (child1.getVisits() == 0) {
+      return child1;
+    } else if (child2.getVisits() == 0) {
+      return child2;
+    }
+
+    double score1 = ((double) child1.getScore() / (double) child1.getVisits())
+        + 2 * 20.0 * Math.sqrt((Math.log(parent.getVisits()) / child1.getVisits()));
+    double score2 = ((double) child2.getScore() / (double) child2.getVisits())
+        + 2 * 20.0 * Math.sqrt((Math.log(parent.getVisits()) / child2.getVisits()));
+
+    // System.out.println("UCB1 for child 1: " + score1);
+    // System.out.println("UCB1 for child 2: " + score2);
+
+    if (score1 >= score2) {
+      return child1;
+    } else {
+      return child2;
+    }
+  }
+
 }
