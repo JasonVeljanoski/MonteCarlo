@@ -59,7 +59,7 @@ public class MCTSAgent implements Agent {
     Action act = null;
     Card play;
 
-    testState(c);
+    MonteCarlo(c);
 
     while (!current.legalAction(act, c)) {
       if (rand.nextDouble() < 0.5)
