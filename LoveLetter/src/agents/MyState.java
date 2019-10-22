@@ -152,10 +152,48 @@ public class MyState implements Cloneable {
             newDeck[i] = tempDeck[k++];
         }
 
+        //Get the index of the inHand card and the topCard from the newDeck
+        int[] indexes = getCardIndexes(inHand, topCard, newDeck);
+        
+        this.top = new int[1];
+        
+        
+        
         // organise the deck h1, h2, h3, h4, topCard, rest of deck
-        newDeck = moveToTop(newDeck, topCard, inHand, numRemaining, topIndex, plrIndex);
-
+        newDeck = moveToTop(newDeck, topCard, inHand, plrIndex, indexes, eliminated);
+        System.out.println("\nCard in hand: " + inHand.toString());
+        System.out.println("Top card: " + topCard.toString());
+        System.out.println("\nCards in deck:");
+        for(int i = 0; i < newDeck.length; i++){
+            if(newDeck[i] == null){
+                System.out.println("null");
+            }
+            else{
+                System.out.println(newDeck[i].toString());
+            }
+        }
+        System.out.println("\nUnseen cards:");
+        for(int i = 0; i < remainingCards.length; i++){
+            if(remainingCards[i] == null){
+                System.out.println("null");
+            }
+            else{
+                System.out.println(remainingCards[i].toString());
+            }
+        }
+        System.out.println();
+        
+        
         deck = newDeck;
+        
+        int ind = 0;
+        
+        while(deck[ind] == null){
+            ind++;
+        }
+        
+        this.top = new int[1];
+        top[0] = ind;
 
         this.discardCount = new int[num];
         this.discards = discards;
@@ -166,10 +204,10 @@ public class MyState implements Cloneable {
                 }
             }
         }
+        
         this.hand = new Card[num];
         this.handmaid = handmaid;
-        this.top = new int[1];
-        this.top[0] = topIndex - numRemaining - 1;
+        //this.top[0] = topIndex - numRemaining - 1;
         this.known = new boolean[num][num];
         for (int i = 0; i < num; i++) {
             if (!eliminated[i]) {
@@ -209,18 +247,50 @@ public class MyState implements Cloneable {
      * @param c    the card to be put to the top of the deck
      * @return the new deck with the card c at the op
      */
-    public Card[] moveToTop(Card[] d, Card top, Card hand, int numRemaining, int topIndex, int playerIndex) {
+    public Card[] moveToTop(Card[] d, Card topCard, Card hand, int playerIndex, int[] indexes, boolean[] elim) {
 
+        //length should always be 16
         int length = d.length;
-        boolean topFound = false;
-        for (int i = 0; i < length; i++) {
-            if (d[i] == top && !topFound) {
-                d[i] = d[topIndex - 1];
-                d[topIndex - 1] = top;
-                topFound = true;
-            } else if (d[i] == hand) {
-                d[i] = d[topIndex - numRemaining - 1 + playerIndex];
-                d[topIndex - numRemaining - 1 + playerIndex] = hand;
+        
+        
+        int j = 0;
+
+        for (int i = 0; i < length; ) {
+            //Move through deck until you get past all of the null cards
+            if(d[i] == null){
+                i++;
+                continue;
+            }
+            
+            //Should always be 4 as all rounds (in the real game) will start as 4 player rounds
+            if(j < 4){
+                //Check if this player has been elimmed and shouldn't be dealt a card
+                if(!elim[j]){
+                    //Do this so that when we deal out hands, we get our proper card
+                    if(j == playerIndex) {
+                        //SWAP hand INTO d[i]
+                        d[indexes[0]] = d[i];
+                        d[i] = hand;                                               
+                        j++;
+                        i++;
+                    }
+                    else{
+                        j++;
+                        i++;
+                    }
+                }
+                //Player eliminated, so don't increment i, only j
+                else{
+                    j++;
+                }
+            }
+            else if(j == 4){
+                //SWAP top INTO d[i]
+                d[indexes[1]] = d[i];
+                d[i] = topCard;
+                               
+                //done all we've needed to do in the method
+                break;
             }
         }
         return d;
@@ -247,6 +317,27 @@ public class MyState implements Cloneable {
             e.printStackTrace();
             return null;
         }
+    }
+    
+    public int[] getCardIndexes(Card inHand, Card topCard, Card[] d){
+        
+        //Int array to hold indexes of the inHand card and the topCard
+        //inHand will be at indexes[0], topCard at indexes[1]
+        int[] indexes = new int[2];
+        
+        boolean inHandFound = false;
+        
+        for(int i = 0; i < d.length; i++){
+            if(d[i] == inHand && !inHandFound){
+                indexes[0] = i;
+                inHandFound = true;
+            }
+            else if(d[i] == topCard) {
+                indexes[1] = i;
+            }  
+        }
+    
+        return indexes;
     }
 
     /**
