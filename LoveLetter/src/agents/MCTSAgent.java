@@ -7,808 +7,379 @@ import java.util.*;
 import loveletter.*;
 
 /**
- * This class represents the observable state of the game. The class comes in
- * two modes, one for the players, which has update operations disabled, and one
- * for the game engine, that can update the state. States of players in the same
- * game will have common data, allowing for an efficient representation.
- **/
-public class MyState implements Cloneable {
+ * An interface for representing an agent in the game Love Letter All agent's
+ * must have a 0 parameter constructor
+ */
+public class MCTSAgent implements Agent {
 
-    private int player;// the player who observes this outcome, or -1 for the game engine
-    private int num; // The number of players in the game
-    private Card[][] discards; // the discarded cards or each player
-    private int[] discardCount; // how many cards each player has discarded
-    private Card[] hand; // the cards players currently hold, or null if the player has been eliminated
-    private Card[] deck; // the deck of remaining cards
-    private int[] top; // the index of the top of the deck
-    private boolean[][] known; // whether player knows another players card
-    private boolean[] handmaid;
-    private int[] scores; // the current score of each player
-    private java.util.Random random;
-    private int[] nextPlayer; // the index of the next player to draw a card (using Object reference so value
-                              // is shared).
-    private MyRandomAgent[] agents;
+  private Random rand;
+  private State current;
+  private int myIndex;
 
-    /**
-     * Default constructor to build the initial observed state for a player First
-     * player in the array will always start
-     * 
-     * @param random the random number generator for the deals.
-     * @param agents the array of players who start the game (must be of size 2,3 or
-     *               4)
-     * @throws IllegalArgumentException if the array is of the wrong size.
-     */
-    public MyState(java.util.Random random, MyRandomAgent[] agents, Card[] remainingCards, Card topCard, Card inHand,
-            int plrIndex, boolean[] eliminated, int topIndex, Card[][] discscards, boolean[] handmaid) {
-        num = agents.length;
-        if (num < 2 || num > 4)
-            throw new IllegalArgumentException("incorrect number of agents");
-        this.agents = agents;
-        this.random = random;
-        player = -1;
-        scores = new int[num];
-        try {
-            newRound(remainingCards, topCard, inHand, plrIndex, eliminated, topIndex, discscards, handmaid);
-        } catch (IllegalActionException e) {
-            /* unreachable code, do nothing */}
-        nextPlayer = new int[1];
-        nextPlayer[0] = plrIndex;
-    }
-    
-    /**
-     * Deep copy state
-     * 
-     * @param copyState
-     */
-    public MyState(MyState copyState) {
-        this.num = copyState.num;
-        this.player = copyState.player;
-        this.random = copyState.random;
+  // 0 place default constructor
+  public MCTSAgent() {
+    rand = new Random();
+  }
 
-        this.deck = new Card[copyState.deck.length];
-        for (int i = 0; i < this.deck.length; i++) {
-            this.deck[i] = copyState.deck[i];
-        }
+  /**
+   * Reports the agents name
+   */
+  public String toString() {
+    return "Monte Moit";
+  }
 
-        this.discardCount = new int[copyState.discardCount.length];
-        for (int i = 0; i < this.discardCount.length; i++) {
-            this.discardCount[i] = copyState.discardCount[i];
-        }
+  /**
+   * Method called at the start of a round
+   * 
+   * @param start the starting state of the round
+   **/
+  public void newRound(State start) {
+    current = start;
+    myIndex = current.getPlayerIndex();
+  }
 
-        this.discards = new Card[4][16];
-        for (int i = 0; i < 4; i++) {
-            for (int j = 0; j < 16; j++) {
-                this.discards[i][j] = copyState.discards[i][j];
-            }
-        }
+  /**
+   * Method called when any agent performs an action.
+   * 
+   * @param act     the action an agent performs
+   * @param results the state of play the agent is able to observe.
+   **/
+  public void see(Action act, State results) {
+    current = results;
+  }
 
-        this.hand = new Card[copyState.hand.length];
-        for (int i = 0; i < this.hand.length; i++) {
-            this.hand[i] = copyState.hand[i];
-        }
+  /**
+   * Perform an action after drawing a card from the deck
+   * 
+   * @param c the card drawn from the deck
+   * @return the action the agent chooses to perform
+   * @throws IllegalActionException when the Action produced is not legal.
+   */
+  public Action playCard(Card c) {
+    Action act = null;
+    Card play;
 
-        this.handmaid = new boolean[copyState.handmaid.length];
-        for (int i = 0; i < this.handmaid.length; i++) {
-            this.handmaid[i] = copyState.handmaid[i];
-        }
+    testState(c);
 
-        this.known = new boolean[copyState.known.length][this.num];
-        for (int i = 0; i < this.known.length; i++) {
-            this.known[i] = copyState.known[i];
-        }
-
-        this.nextPlayer = new int[1];
-        for (int i = 0; i < 1; i++) {
-            this.nextPlayer[i] = copyState.nextPlayer[i];
-        }
-
-        this.scores = new int[this.num];
-        for (int i = 0; i < this.scores.length; i++) {
-            this.scores[i] = copyState.scores[i];
-        }
-
-        this.top = new int[1];
-        for (int i = 0; i < 1; i++) {
-            this.top[i] = copyState.top[i];
-        }
-
-        this.agents = new MyRandomAgent[this.num];
-        for (int i = 0; i < this.num; i++) {
-            this.agents[i] = copyState.agents[i];
-        }
-    }
-
-    /**
-     * Resets state for a new round, with new deck of cards, and everyone's hand and
-     * discards reset.
-     * 
-     * @throws IllegalActionException if this is a player state.
-     **/
-    public void newRound(Card[] remainingCards, Card topCard, Card inHand, int plrIndex, boolean[] eliminated,
-            int topIndex, Card[][] discards, boolean[] handmaid) throws IllegalActionException {
-        if (this.player != -1)
-            throw new IllegalActionException("Operation not permitted in player's state.");
-
-        // get number of players remaining in the game
-        int numRemaining = 4;
-        for (int i = 0; i < eliminated.length; i++) {
-            if (eliminated[i]) {
-                numRemaining--;
-            }
-        }
-
-        Card[] tempDeck = new Card[remainingCards.length + 1];
-        int numCards = tempDeck.length;
-
-        // System.arraycopy(remainingCards, 0, tempDeck, 0, numCards);
-        for (int i = 0; i < remainingCards.length; i++) {
-            tempDeck[i] = remainingCards[i];
-        }
-        tempDeck[numCards - 1] = topCard;
-
-        // Shuffles the deck, then ensures that topCard is at the top of the deck
-        tempDeck = shuffle(random, tempDeck);
-
-        // make tempDeck into an array of size 16 (unavailable cards are null)
-        Card[] newDeck = new Card[16];
-        int k = 0;
-        for (int i = topIndex - numRemaining - 1; i < newDeck.length; i++) {
-            newDeck[i] = tempDeck[k++];
-        }
-
-        //Get the index of the inHand card and the topCard from the newDeck
-        int[] indexes = getCardIndexes(inHand, topCard, newDeck);
-        
-        this.top = new int[1];
-        
-        
-        
-        // organise the deck h1, h2, h3, h4, topCard, rest of deck
-        newDeck = moveToTop(newDeck, topCard, inHand, plrIndex, indexes, eliminated);
-        System.out.println("\nCard in hand: " + inHand.toString());
-        System.out.println("Top card: " + topCard.toString());
-        System.out.println("\nCards in deck:");
-        for(int i = 0; i < newDeck.length; i++){
-            if(newDeck[i] == null){
-                System.out.println("null");
-            }
-            else{
-                System.out.println(newDeck[i].toString());
-            }
-        }
-        System.out.println("\nUnseen cards:");
-        for(int i = 0; i < remainingCards.length; i++){
-            if(remainingCards[i] == null){
-                System.out.println("null");
-            }
-            else{
-                System.out.println(remainingCards[i].toString());
-            }
-        }
-        System.out.println();
-        
-        
-        deck = newDeck;
-        
-        int ind = 0;
-        
-        while(deck[ind] == null){
-            ind++;
-        }
-        
-        this.top = new int[1];
-        top[0] = ind;
-
-        this.discardCount = new int[num];
-        this.discards = discards;
-        for (int i = 0; i < discards.length; i++) {
-            for (int j = 0; j < discards[i].length; j++) {
-                if (this.discards[i][j] != null) {
-                    this.discardCount[i]++;
-                }
-            }
-        }
-        
-        this.hand = new Card[num];
-        this.handmaid = handmaid;
-        //this.top[0] = topIndex - numRemaining - 1;
-        this.known = new boolean[num][num];
-        for (int i = 0; i < num; i++) {
-            if (!eliminated[i]) {
-                hand[i] = this.deck[top[0]++];
-                known[i][i] = true;
-            }
-        }
-    }
-
-    /**
-     * HELPER FUNCTIONS
-     */
-
-    /**
-     * Shuffle a deck of cards into a random order
-     * 
-     * @param d
-     * @return
-     */
-    private Card[] shuffle(java.util.Random rand, Card[] d) {
-        int size = d.length;
-
-        for (int i = 0; i < 200; i++) { // make two hundred random swaps of cards
-            int index1 = rand.nextInt(size);
-            int index2 = rand.nextInt(size);
-            Card c = d[index1];
-            d[index1] = d[index2];
-            d[index2] = c;
-        }
-        return d;
-    }
-
-    /**
-     * Moves a card to the top of the deck by switching it around
-     * 
-     * @param deck The deck to be modified
-     * @param c    the card to be put to the top of the deck
-     * @return the new deck with the card c at the op
-     */
-    public Card[] moveToTop(Card[] d, Card topCard, Card hand, int playerIndex, int[] indexes, boolean[] elim) {
-
-        //length should always be 16
-        int length = d.length;
-        
-        
-        int j = 0;
-
-        for (int i = 0; i < length; ) {
-            //Move through deck until you get past all of the null cards
-            if(d[i] == null){
-                i++;
-                continue;
-            }
-            
-            //Should always be 4 as all rounds (in the real game) will start as 4 player rounds
-            if(j < 4){
-                //Check if this player has been elimmed and shouldn't be dealt a card
-                if(!elim[j]){
-                    //Do this so that when we deal out hands, we get our proper card
-                    if(j == playerIndex) {
-                        //SWAP hand INTO d[i]
-                        d[indexes[0]] = d[i];
-                        d[i] = hand;                                               
-                        j++;
-                        i++;
-                    }
-                    else{
-                        j++;
-                        i++;
-                    }
-                }
-                //Player eliminated, so don't increment i, only j
-                else{
-                    j++;
-                }
-            }
-            else if(j == 4){
-                //SWAP top INTO d[i]
-                d[indexes[1]] = d[i];
-                d[i] = topCard;
-                               
-                //done all we've needed to do in the method
-                break;
-            }
-        }
-        return d;
-    }
-
-    /**
-     * Produces a state object for a player in the game. The update methods will be
-     * disabled for that State object.
-     * 
-     * @param player the player for who the State object is created.
-     * @throws IllegalActionException   if this is a player state.
-     * @throws IllegalArgumentException if player is not between 0 and numPlayers
-     **/
-    public MyState playerState(int player) throws IllegalActionException {
-        if (this.player != -1)
-            throw new IllegalActionException("Operation not permitted in player's state.");
-        if (player < 0 || num <= player)
-            throw new IllegalArgumentException("Player out of range.");
-        try {
-            MyState s = (MyState) this.clone();
-            s.player = player;
-            return s;
-        } catch (CloneNotSupportedException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-    
-    public int[] getCardIndexes(Card inHand, Card topCard, Card[] d){
-        
-        //Int array to hold indexes of the inHand card and the topCard
-        //inHand will be at indexes[0], topCard at indexes[1]
-        int[] indexes = new int[2];
-        
-        boolean inHandFound = false;
-        
-        for(int i = 0; i < d.length; i++){
-            if(d[i] == inHand && !inHandFound){
-                indexes[0] = i;
-                inHandFound = true;
-            }
-            else if(d[i] == topCard) {
-                indexes[1] = i;
-            }  
-        }
-    
-        return indexes;
-    }
-
-    /**
-     * checks to see if agent a targetting agent t, with card c, whilst holding card
-     * d is a legal action. That is a) the player a must hold card c, b) it must be
-     * player a's turn c) if the player holds the Countess, they cannot play the
-     * Prince or the King d) if the action has a target, they cannot be eliminated
-     * e) if the target is protected by the Handmaid and their is some player other
-     * than the target and a not protected, then that player must be targetted
-     * instead. f) if all players are protected by the Handmaid and the player a
-     * plays a Prince, they must target themselves
-     * 
-     * @param a     the index of the playing agent
-     * @param t     the index of the targeted player or -1, of no such target exists
-     * @param c     the card played
-     * @param drawn the card drawn
-     * @throws IllegalActionException if any of these conditions hold.
-     **/
-    private void legalAction(int a, int t, Card c, Card drawn) throws IllegalActionException {
-        if (hand[a] != c && drawn != c)
-            throw new IllegalActionException("Player does not hold the played card");
-        if (nextPlayer[0] != a)// it must be the actors turn
-            throw new IllegalActionException("Wrong player in action");
-        if ((hand[a] == Card.COUNTESS || drawn == Card.COUNTESS) && (c == Card.KING || c == Card.PRINCE))// if one of
-                                                                                                         // the cards is
-                                                                                                         // the
-                                                                                                         // countess, a
-                                                                                                         // king or
-                                                                                                         // prince may
-                                                                                                         // not be
-                                                                                                         // played.
-            throw new IllegalActionException("Player must play the countess");
-        if (t != -1) {// if this action has a target (1,2,3,5,6 cards)
-            if (eliminated(t)) // you cannot target an eliminated player
-                throw new IllegalActionException("The action's target is already eliminated");
-            if (c == Card.PRINCE && a == t)
-                return;// a player can always target themselves with the Prince.
-            if (handmaid(t) && (!allHandmaid(a) || c == Card.PRINCE))// you cannot target a player with the handmaid
-                throw new IllegalActionException("The action's target is protected by the handmaid");
-        }
-    }
-
-    /**
-     * Checks to see if an action is legal given the current state of the game, for
-     * an agent who has just drawn a card. That is a) the player a must hold card c,
-     * b) it must be player a's turn c) if the player holds the Countess, they
-     * cannot play the Prince or the King d) if the action has a target, they cannot
-     * be eliminated e) if the target is protected by the Handmaid and their is some
-     * player other than the target and a not protected, then that player must be
-     * targetted instead. f) if all players are protected by the Handmaid and the
-     * player a plays a Prince, they must target themselves There are other rules
-     * (such as a player not targetting themselves) that is enforced in the Action
-     * class.
-     * 
-     * @param act   the action to be performed
-     * @param drawn the card drawn by the playing agent.
-     * @throws IllegalActionException if any of these conditions hold.
-     **/
-    public boolean legalAction(Action act, Card drawn) {
-        if (act == null)
-            return false;
-        try {
-            legalAction(act.player(), act.target(), act.card(), drawn);
-        } catch (IllegalActionException e) {
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * Draws a card for a player from the shuffled deck. May only be performed in
-     * the game state. The card is no longer available on the top of the deck.
-     * 
-     * @return the top card of the deck
-     * @throws IllegalActionException if an agent attempts to access this from a
-     *                                player state.
-     **/
-    public Card drawCard() throws IllegalActionException {
-        if (player != -1)
-            throw new IllegalActionException("operation not permitted in player's state.");
-        return deck[top[0]++];
-    }
-
-    /**
-     * Executes the given action of a player. May only be called for non-player
-     * states (i.e. the omniscient game engine state)
-     * 
-     * @param act  the action to be performed
-     * @param card the card drawn by the actor
-     * @return a plain English description of the action
-     * @throws IllegalActionAxception if the state is a player state, or if the
-     *                                action is against the rules.
-     ***/
-    public String update(Action act, Card card) throws IllegalActionException {
-        if (player != -1)// Actions may only be executed from game states
-            throw new IllegalActionException("Method cannot be called from a player state");
-        int a = act.player();// actor
-        int t = act.target();// target
-        Card c = act.card();
-        discards[a][discardCount[a]++] = c;// put played card on the top of the acting player's discard pile, required
-                                           // for checking actions.
-        try {
-            legalAction(a, t, c, card);
-        } catch (IllegalActionException e) {
-            discardCount[a]--;
-            throw e;// reset discard top
-        }
-        if (c == hand[a]) {// if the player played the card in their hand, insert the new card into their
-                           // hand.
-            hand[a] = card;
-            for (int p = 0; p < num; p++)
-                if (p != a)
-                    known[p][a] = false;// rescind players knowledge if a known card was played
-        }
-        handmaid[a] = false;
-        String ret = act.toString(name(a), t != -1 ? name(t) : "");
-        switch (c) {
-        case GUARD:// actor plays the guard
-            ret += guardAction(a, t, act.guess());
-            break;
+    while (!current.legalAction(act, c)) {
+      if (rand.nextDouble() < 0.5)
+        play = c;
+      else
+        play = current.getCard(myIndex);
+      int target = rand.nextInt(current.numPlayers());
+      try {
+        switch (play) {
+        case GUARD:
+          act = Action.playGuard(myIndex, target, Card.values()[rand.nextInt(7) + 1]);
+          break;
         case PRIEST:
-            ret += priestAction(a, t);
-            break;
+          act = Action.playPriest(myIndex, target);
+          break;
         case BARON:
-            ret += baronAction(a, t);
-            break;
+          act = Action.playBaron(myIndex, target);
+          break;
         case HANDMAID:
-            handmaid[a] = true;
-            break;
+          act = Action.playHandmaid(myIndex);
+          break;
         case PRINCE:
-            ret += princeAction(t);
-            break;
+          act = Action.playPrince(myIndex, target);
+          break;
         case KING:
-            ret += kingAction(a, t);
-            break;
+          act = Action.playKing(myIndex, target);
+          break;
         case COUNTESS:
-            // no update required
-            break;
-        case PRINCESS:
-            ret += princessAction(a);
-            break;
+          act = Action.playCountess(myIndex);
+          break;
         default:
-            throw new IllegalActionException("Illegal Action? Something's gone very wrong");
-        }// end of switch
-        if (roundOver()) {// check for round over
-            for (int i = 0; i < num; i++)
-                for (int p = 0; p < num; p++)
-                    known[i][p] = true;
-            int winner = roundWinner();
-            ret += "\nPlayer " + winner + " wins the round.";
-            scores[winner]++;
-            nextPlayer[0] = winner;
-        } else {// set nextPlayer to next noneliminated player
-            nextPlayer[0] = (nextPlayer[0] + 1) % num;
-            while (eliminated(nextPlayer[0]))
-                nextPlayer[0] = (nextPlayer[0] + 1) % num;
+          act = null;// never play princess
         }
-        return ret;
+      } catch (IllegalActionException e) {
+        /* do nothing */}
+    }
+    return act;
+  }
+
+  public void testState(Card topCard) {
+
+    MyRandomAgent[] agents = { new MyRandomAgent(), new MyRandomAgent(), new MyRandomAgent(), new MyRandomAgent() };
+    Card[] remainingCards = current.unseenCards();
+    Card inHand = current.getCard(myIndex);
+
+    boolean[] eliminated = new boolean[current.numPlayers()];
+    for (int i = 0; i < eliminated.length; i++) {
+      if (current.eliminated(i)) {
+        eliminated[i] = true;
+      }
     }
 
-    private String guardAction(int a, int t, Card guess) {
-        if (allHandmaid(a))
-            return "\nPlayer " + name(t) + " is protected by the Handmaid.";// no effect action
-        else if (guess == hand[t]) {// correct guess, target eliminated
-            discards[t][discardCount[t]++] = hand[t];
-            hand[t] = null;
-            for (int p = 0; p < num; p++)
-                known[p][t] = true;
-            return "\nPlayer " + name(t) + " had the " + guess + " and is eliminated from the round";
-        } else
-            return "\nPlayer " + name(t) + " does not have the " + guess;
+    int topIndex = 16 - current.deckSize();
+
+    Card[][] discards = new Card[agents.length][16];
+
+    // Iterator to traverse the list
+    int cntr = 0;
+    for (int j = 0; j < discards.length; j++) {
+
+      Iterator iterator = current.getDiscards(j);
+      while (iterator.hasNext()) {
+        discards[j][cntr++] = (Card) iterator.next();
+      }
+
+      cntr = 0; // reset
     }
 
-    private String priestAction(int a, int t) {
-        if (allHandmaid(a))
-            return "\nPlayer " + name(t) + " is protected by the Handmaid.";// no effect action
-        else
-            known[a][t] = true;
-        return "\nPlayer " + name(a) + " sees player " + name(t) + "'s card.";
+    boolean[] handmaid = new boolean[agents.length];
+    for (int i = 0; i < handmaid.length; i++) {
+      handmaid[i] = current.handmaid(i);
     }
 
-    private String baronAction(int a, int t) {
-        if (allHandmaid(a))
-            return "\nPlayer " + name(t) + " is protected by the Handmaid.";// no effect action
-        int elim = -1;
-        if (hand[a].value() > hand[t].value())
-            elim = t;
-        else if (hand[a].value() < hand[t].value())
-            elim = a;
-        if (elim != -1) {
-            discards[elim][discardCount[elim]++] = hand[elim];
-            hand[elim] = null;
-            for (int p = 0; p < num; p++)
-                known[p][elim] = true;
-            return "\nPlayer " + name(elim) + " holds the lesser card: " + discards[elim][discardCount[elim] - 1]
-                    + ", and is eliminated";
+    MyState s = new MyState(rand, agents, remainingCards, topCard, inHand, myIndex, eliminated, topIndex, discards,
+        handmaid);
+
+  }
+
+  /**
+   * Apply the Monti Carlo Algorithm in order to make the best move in the current
+   * position
+   * 
+   * @param c card picked up
+   * @return card the agent should play given the position
+   */
+  public Card MonteCarlo(Card c) {
+
+    // Need to set up the root node outside of the for loops
+
+    Node rootNode = new Node();
+
+    Node child1 = new Node();
+    Node child2 = new Node();
+
+    // Set up the child nodes for the root node
+    // They are both currently lead nodes, don't need to store anything in them at
+    // this stage
+    // Need to make sure over all of the for loops, that number of visits and score
+    // are maintained
+
+    rootNode.setChild1(child1);
+    rootNode.setChild2(child2);
+
+    child1.setParent(rootNode);
+    child2.setParent(rootNode);
+
+    // GET INFORMATION FOR DETERMINISATION
+
+    MyState[] playerStates = new MyState[4];
+
+    MyRandomAgent[] agents = { new MyRandomAgent(), new MyRandomAgent(), new MyRandomAgent(), new MyRandomAgent() };
+    Card[] remainingCards = current.unseenCards();
+    Card inHand = current.getCard(myIndex);
+    // eliminated info
+    boolean[] eliminated = new boolean[current.numPlayers()];
+    for (int i = 0; i < eliminated.length; i++) {
+      if (current.eliminated(i)) {
+        eliminated[i] = true;
+      }
+    }
+
+    int topIndex = 16 - current.deckSize();
+    // discards info
+    Card[][] discards = new Card[agents.length][16];
+
+    // Iterator to traverse the list
+    int cntr = 0;
+    for (int j = 0; j < discards.length; j++) {
+
+      Iterator iterator = current.getDiscards(j);
+      while (iterator.hasNext()) {
+        discards[j][cntr++] = (Card) iterator.next();
+      }
+
+      cntr = 0; // reset
+    }
+    // handmaid info
+    boolean[] handmaid = new boolean[agents.length];
+    for (int i = 0; i < handmaid.length; i++) {
+      handmaid[i] = current.handmaid(i);
+    }
+
+    // Overarching for-loop
+    // 100 different decks will be generated by this loop
+    for (int i = 0; i < 1; i++) {
+
+      MyState s = new MyState(rand, agents, remainingCards, c, inHand, myIndex, eliminated, topIndex, discards,
+          handmaid);
+
+      // set player states for each random agent
+      try {
+        for (int j = 0; j < agents.length; j++) {
+          playerStates[j] = s.playerState(j);
+          agents[j].newRound(playerStates[j]);
         }
-        known[a][t] = true;
-        known[t][a] = true;
-        return "\n Both players hold the same card, and neither is eliminated.";
+      } catch (IllegalActionException e) {
+        System.out.println("Illegal action");
+      }
+
+      rootNode.setState(s);
+
+      // Draw card from deck, then play the card just drawn from the deck
+      try {
+      Card topCard = s.drawCard();
+      } catch (IllegalActionException e) {
+        System.out.println("Illegal action");
+      }
+      System.out.println("------BEGIN EXPAND NODE------");
+      expand(rootNode, c, agents);
+      System.out.println("------END EXPAND NODE------");
     }
 
-    // handmaid action requires no update
+    return c;
 
-    private String princeAction(int t) {
-        Card discard = hand[t];
-        discards[t][discardCount[t]++] = discard;
-        if (discard == Card.PRINCESS) {
-            hand[t] = null;
-            for (int p = 0; p < num; p++)
-                known[p][t] = true;
-            return "\nPlayer " + name(t) + " discarded the Princess and is eliminated.";
-        }
-        hand[t] = deck[top[0]++];
-        for (int p = 0; p < num; p++)
-            if (p != t)
-                known[p][t] = false;
-        return "\nPlayer " + name(t) + " discards the " + discard + ".";
+  }
+
+  /**
+   * expand a node n
+   * 
+   * @param n
+   * @param topCard
+   */
+  private void expand(Node n, Card topCard, MyRandomAgent[] agents) {
+
+    MyState gameState = new MyState(n.getState());
+    Node child1 = n.getFirstChild();
+    Node child2 = n.getSecondChild();
+
+    if (topCard == Card.PRINCESS) {
+
+      Action a = agents[gameState.nextPlayer()].playSpecificCard(gameState.getCard(gameState.nextPlayer()));
+
+      // Update the gameState, then deep copy it into a child node
+      try {
+        gameState.update(a, topCard);
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        System.exit(1);
+      }
+
+      child1.setState(gameState);
+      checkIfTerminal(child1);
+
+      child2.incrementVisits(10000000);
+
+    } else if (gameState.getCard(gameState.nextPlayer()) == Card.PRINCESS) {
+      Action a = agents[gameState.nextPlayer()].playSpecificCard(topCard);
+
+      // Update the gameState, then deep copy it into a child node
+      try {
+        gameState.update(a, topCard);
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        System.exit(1);
+      }
+
+      child1.setState(gameState);
+      checkIfTerminal(child1);
+
+      child2.incrementVisits(10000000);
+
+    } else if (topCard == Card.COUNTESS && (gameState.getCard(gameState.nextPlayer()) == Card.PRINCE
+        || gameState.getCard(gameState.nextPlayer()) == Card.KING)) {
+      Action a = agents[gameState.nextPlayer()].playSpecificCard(topCard);
+
+      // Update the gameState, then deep copy it into a child node
+      try {
+        gameState.update(a, topCard);
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        System.exit(1);
+      }
+
+      child1.setState(gameState);
+      checkIfTerminal(child1);
+
+      child2.incrementVisits(10000000);
+    } else if (gameState.getCard(gameState.nextPlayer()) == Card.COUNTESS
+        && (topCard == Card.PRINCE || topCard == Card.KING)) {
+      Action a = agents[gameState.nextPlayer()].playSpecificCard(gameState.getCard(gameState.nextPlayer()));
+
+      // Update the gameState, then deep copy it into a child node
+      try {
+        gameState.update(a, topCard);
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        System.exit(1);
+      }
+
+      child1.setState(gameState);
+      checkIfTerminal(child1);
+
+      child2.incrementVisits(10000000);
+    } else {
+
+      Action act = agents[gameState.nextPlayer()].playSpecificCard(topCard);
+
+      // Update the gameState, then deep copy it into a child node
+      try {
+        gameState.update(act, topCard);
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        System.exit(1);
+      }
+
+      child1.setState(gameState);
+      checkIfTerminal(child1);
+
+      // Reset gameState to its inital state from rootNode
+      gameState = new MyState(n.getState());
+
+      try {
+      topCard = gameState.drawCard();
+      } catch (IllegalActionException e) {
+        System.out.println("Illegal action");
+      }
+      act = agents[gameState.nextPlayer()].playSpecificCard(gameState.getCard(gameState.nextPlayer()));
+
+      try {
+        System.out.println(gameState.update(act, topCard));
+      } catch (IllegalActionException e) {
+        System.out.println("Update didnt work");
+        try{Thread.sleep(1000);}catch(InterruptedException l){System.out.println(l);}  
+        System.exit(1);
+      }
+
+      // Setup child2
+      child2.setState(gameState);
+      checkIfTerminal(child2);
+    }
+  }
+
+  /**
+   * Checks if node n is a terminal node
+   * 
+   * @param n
+   */
+  private void checkIfTerminal(Node n) {
+
+    MyState s = n.getState();
+
+    if (s.roundOver()) {
+      n.setIsTerminal(true);
+
+      if (s.score(myIndex) == 1) {
+        n.incrementScore(1);
+      }
+
+      return;
     }
 
-    private String kingAction(int a, int t) {
-        if (allHandmaid(a))
-            return "\nPlayer " + name(t) + " is protected by the Handmaid.";
-        known[a][t] = true;
-        known[t][a] = true;
-        for (int p = 0; p < num; p++) {
-            if (p != t && p != a) {
-                boolean tmp = known[p][t];
-                known[p][t] = known[p][a];
-                known[p][a] = tmp;
-            }
-        }
-        Card tmp = hand[a];
-        hand[a] = hand[t];
-        hand[t] = tmp;
-        return "\nPlayer " + name(a) + " and player " + name(t) + " swap cards.";
+    if (s.eliminated(myIndex)) {
+      n.setIsTerminal(true);
+      return;
     }
 
-    // countess action not required
-
-    private String princessAction(int a) {
-        discards[a][discardCount[a]++] = hand[a];
-        hand[a] = null;
-        for (int p = 0; p < num; p++)
-            known[p][a] = true;
-        String outcome = "\nPlayer " + name(a) + " played the Princess and is eliminated.";
-        outcome += "\n Player " + name(a) + " was also holding the " + discards[a][discardCount[a] - 1] + ".";
-        return outcome;
-    }
-
-    /**
-     * returns the index of the observing player, or -1 for perfect information.
-     * 
-     * @return the index of the observing player, or -1 for perfect information.
-     **/
-    public int getPlayerIndex() {
-        return player;
-    }
-
-    /**
-     * returns an iterator to go through a players discard pile, from most recent to
-     * earliest.
-     * 
-     * @param player the index of the player whos discard pile is sought.
-     * @return an iterator to go through the discard pile, from most recently
-     *         discarded to oldest discard
-     **/
-    public java.util.Iterator<Card> getDiscards(int player) {
-        return new java.util.Iterator<Card>() {
-            int p = player;
-            int top = discardCount[player];
-
-            public boolean hasNext() {
-                return top > 0;
-            }
-
-            public Card next() throws java.util.NoSuchElementException {
-                if (hasNext())
-                    return discards[p][--top];
-                else
-                    throw new java.util.NoSuchElementException();
-            }
-        };
-    }
-
-    /**
-     * get the card of the specified player, if known.
-     * 
-     * @param playerIndex the player for which we seek the card
-     * @return the card the player currently holds, or null, if it is not known
-     * @throws ArrayIndexoutOfBoundsException if the playerIndex is out of range.
-     **/
-    public Card getCard(int playerIndex) {
-        if (player == -1 || known[player][playerIndex])
-            return hand[playerIndex];
-        else
-            return null;
-    }
-
-    /**
-     * returns true if the nominated player is eliminated in the round
-     * 
-     * @param player the player being checked
-     * @return true if and only if the player has been eliminated in the round.
-     * @throws ArrayIndexoutOfBoundsException if the playerIndex is out of range.
-     **/
-    public boolean eliminated(int player) {
-        return hand[player] == null;
-    }
-
-    /**
-     * Gives the next player to play in the round
-     * 
-     * @return the index of the next player to play
-     **/
-    public int nextPlayer() {
-        return nextPlayer[0];
-    }
-
-    /**
-     * Gives the number of players in the game
-     * 
-     * @return the number of players in the game
-     **/
-    public int numPlayers() {
-        return num;
-    }
-
-    /**
-     * helper method to determine if the nominated player is protected by the
-     * handmaid
-     * 
-     * @return true if and only if the index corresponds to a player who is
-     *         protected by the handmaid
-     **/
-    public boolean handmaid(int player) {
-        if (player < 0 || player >= num)
-            return false;
-        return handmaid[player];
-    }
-
-    /**
-     * helper method to check if every other player other than the specified player
-     * is either eliminated or protected by the handmaid
-     * 
-     * @param player the player who would be playing a card
-     * @return true if and only if every player other than the nominated player is
-     *         eliminated or prtoected by the handmaid
-     * @throws ArrayIndexoutOfBoundsException if the playerIndex is out of range.
-     **/
-    public boolean allHandmaid(int player) {
-        boolean noAction = true;
-        for (int i = 0; i < num; i++)
-            noAction = noAction && (eliminated(i) || handmaid[i] || i == player);
-        return noAction;
-    }
-
-    private String name(int playerIndex) {
-        return agents[playerIndex].toString() + "(" + playerIndex + ")";
-    }
-
-    /**
-     * gives the remaining size of the deck, including the burnt card
-     * 
-     * @return the number of cards not in players hands or discarded.
-     **/
-    public int deckSize() {
-        return 16 - top[0];
-    }
-
-    /**
-     * returns an array of the remaining cards that haven't been played yet. Should
-     * be called unplayedCards???
-     * 
-     * @return an array of all cards not in the discard piles
-     ***/
-    public Card[] unseenCards() {
-        int alive = 0;
-        for (int p = 0; p < num; p++)
-            if (!eliminated(p))
-                alive++;
-        Card[] rem = new Card[deckSize() + alive];
-        int aCount = 0;
-        for (int p = 0; p < num; p++)
-            if (!eliminated(p))
-                rem[aCount++] = hand[p];
-        for (int i = 0; i < deckSize(); i++)
-            rem[alive + i] = deck[top[0] + i];
-        java.util.Arrays.sort(rem);
-        return rem;
-    }
-
-    /**
-     * Tests to see if the round is over, either by all but one player being
-     * eliminated or by all but one card being drawn from the deck.
-     * 
-     * @return true if and only if the round is over
-     **/
-    public boolean roundOver() {
-        int remaining = 0;
-        for (int i = 0; i < num; i++)
-            if (!eliminated(i))
-                remaining++;
-        return remaining == 1 || deckSize() < 2;
-    }
-
-    /**
-     * helper method to determine the winner of the round. In the unlikely event of
-     * a total draw, the player with the smallest index is the winner.
-     * 
-     * @return the index of the winner, or -1 if the round is not yet over.
-     **/
-    public int roundWinner() {
-        if (!roundOver())
-            return -1;
-        int winner = -1;
-        int topCard = -1;
-        int discardValue = -1;
-        for (int p = 0; p < num; p++) {
-            if (!eliminated(p)) {
-                int dv = 0;
-                for (int j = 0; j < discardCount[p]; j++)
-                    dv += discards[p][j].value();
-                if (hand[p].value() > topCard || (hand[p].value() == topCard && dv > discardValue)) {
-                    winner = p;
-                    topCard = hand[p].value();
-                    discardValue = dv;
-                }
-            }
-        }
-        return winner;
-    }
-
-    /**
-     * returns the score of the specified player
-     * 
-     * @param player the player whose score is sought
-     * @return the score of the specified player
-     **/
-    public int score(int player) {
-        if (player < 0 || player > num)
-            return 0;
-        return scores[player];
-    }
-
-    /**
-     * confirms the game is over
-     * 
-     * @return true if and only if a player a acrued sufficient tokens to win the
-     *         game
-     **/
-    public boolean gameOver() {
-        return gameWinner() != -1;
-    }
-
-    /**
-     * Gives the index of the winning player if there is one, otherwise returns -1
-     * 
-     * @return the index of the winning player, or -1 if the game is not yet over.
-     **/
-    public int gameWinner() {
-        int threshold = num == 4 ? 4 : num == 3 ? 5 : num == 2 ? 7 : 0;// sets the required threshhold for different
-                                                                       // numbers of players.
-        for (int p = 0; p < num; p++)
-            if (scores[p] == threshold)
-                return p;
-        return -1;
-    }
-
+  }
 }
