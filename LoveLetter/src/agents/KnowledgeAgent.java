@@ -75,21 +75,24 @@ public class KnowledgeAgent implements Agent {
     boolean[] eliminated = new boolean[4];
 
     for (int i = 0; i < eliminated.length; i++) {
-        if(!current.eliminated(i)) {
+        if(current.eliminated(i)) {
             eliminated[i] = true;
         }
         else{
             eliminated[i] = false;
         }
     }
+    
+    Card[] unseen = current.unseenCards();
+    Card L = findMostLikelyCard(unseen);
 
-    Action act = heuristic(c1, c2, W, D, known, eliminated);
+    Action act = heuristic(c1, c2, W, D, known, eliminated, L);
     System.out.println(act);
 
     return act;
   }
 
-private Action heuristic(Card c1, Card c2, int W, int D, Card[] known, boolean[] eliminated) {
+private Action heuristic(Card c1, Card c2, int W, int D, Card[] known, boolean[] eliminated, Card L) {
     
     Action act = null;
 
@@ -184,12 +187,19 @@ private Action heuristic(Card c1, Card c2, int W, int D, Card[] known, boolean[]
         }
     }
     else if(c1 == Card.HANDMAID || c2 == Card.HANDMAID) {
-
-        act = Action.playHandmaid(myIndex);
-        
+        act = Action.playHandmaid(myIndex);        
     }
     else if(c1 == Card.GUARD || c2 == Card.GUARD){
-
+        if(!eliminated[W]){
+            act = Action.playGuard(myIndex, W, L);
+        }
+        else {
+            for (int i = 0; i < eliminated.length; i++) {
+                if(!eliminated[i] && i != myIndex){
+                    act = Action.playGuard(myIndex, i, L);
+                }
+            }
+        }
     }
     else if (c1 == Card.PRINCE || c2 == Card.PRINCE) {
         if(!eliminated[W]){
@@ -221,9 +231,12 @@ private Action heuristic(Card c1, Card c2, int W, int D, Card[] known, boolean[]
     }
 
     } catch(IllegalActionException e){
-        System.out.println("Illegal move performed");
-        act = null;
-        System.exit(1);
+        System.out.println("Illegal move performed :" + act);
+        act = playRandomCard(c1);
+    }
+    
+    if(act == null) {
+        act = playRandomCard(c1);
     }
 
     return act;
@@ -280,8 +293,36 @@ private Action heuristic(Card c1, Card c2, int W, int D, Card[] known, boolean[]
 
   private Card findMostLikelyCard(Card[] unseen) {
 
+    if(unseen[0] == null){
+        return Card.PRINCESS;
+    }
+      
+    int max = 1;
+    int counter = 1;
+    Card c = unseen[0];
+    
+    Card maxCard = c;
+    
+    for(int i = 1; i < unseen.length; i++){
+        if(unseen[i] != c) {
+            if(counter > max){
+                max = counter;
+                maxCard = c;
+            }
+            c = unseen[i];
+        }
+        else{
+            counter++;
+        }    
+    }
+    
+    if(counter > max){
+        max = counter;
+        maxCard = c;
+    }
+    
 
-    return null;
+    return maxCard;
 
   }
 
