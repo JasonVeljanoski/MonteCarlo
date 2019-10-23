@@ -272,14 +272,13 @@ public class MCTSAgent implements Agent {
           // ROLLOUT PHASE OF
           // MONTECARLO------------------------------------------------------------------------------------------------------------------------
 
-          // Need to change this
-          // rollout(c);
           score = myRollout(currentNode);
 
         }
         System.out.println("LETS BACK PROGATE");
         // BACKPROPAGATION PHASE OF
         // MONTECARLO-----------------------------------------------------------------------------------------------------------------
+
         currentNode.incrementScore(score);
         currentNode.incrementVisits(1);
         // Travels up the tree, increasing the score and visits for each node until it
@@ -296,6 +295,7 @@ public class MCTSAgent implements Agent {
       }
     }
 
+    //Calculate which of the two leaf nodes from the main root node are better
     double ratio1 = (double) child1.getScore() / (double) child1.getVisits();
     double ratio2 = (double) child2.getScore() / (double) child2.getVisits();
 
@@ -373,9 +373,20 @@ public class MCTSAgent implements Agent {
   private void expand(Node n, MyRandomAgent[] agents) {
 
     MyState gameState = new MyState(n.getState());
+    MyState[] playerStates = new MyState[4];
+    
     Node child1 = n.getFirstChild();
     Node child2 = n.getSecondChild();
     Card topCard = null;
+
+    try {
+        for (int j = 0; j < agents.length; j++) {
+          playerStates[j] = gameState.playerState(j);
+          agents[j].newRound(playerStates[j]);
+        }
+      } catch (IllegalActionException e) {
+        System.out.println("Illegal action");
+      }
 
     try {
       topCard = gameState.drawCard();

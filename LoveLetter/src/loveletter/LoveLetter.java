@@ -4,6 +4,7 @@ import java.util.Random;
 import java.io.PrintStream;
 
 import agents.KnowledgeAgent;
+import agents.MCTSAgent;
 import agents.RandomAgent;
 
 /**
@@ -97,7 +98,7 @@ public class LoveLetter {
    * The agent implementations should be in the default package.
    */
   public static void main(String[] args) {
-    Agent[] agents = { new agents.KnowledgeAgent(), new agents.RandomAgent(), new agents.RandomAgent(),
+    Agent[] agents = { new agents.MCTSAgent(), new agents.RandomAgent(), new agents.RandomAgent(),
         new agents.RandomAgent() };
     LoveLetter env = new LoveLetter();
     StringBuffer log = new StringBuffer("A simple game for four random agents:\n");
